@@ -5,7 +5,7 @@ from typing import Optional
 
 import streamlit as st
 from citation import to_apa
-from connector import query_react
+from connector import query_react, ReactManager
 
 
 def append_citation(document: dict) -> None:
@@ -18,7 +18,7 @@ def append_citation(document: dict) -> None:
 
 
 # Initialize states
-st.set_page_config(page_title="COVID-19 Question answering.", page_icon="📚")
+st.set_page_config(page_title="Ask Dolomites.", page_icon="📚")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -35,8 +35,6 @@ def get_questions():
 
 if "questions" not in st.session_state:
     st.session_state.questions = get_questions()
-
-# Convinience functions
 
 
 @dataclass
@@ -81,25 +79,22 @@ def render(message: Message) -> None:
 
 
 # App logic
-st.title("ASKEM: COVID-19 QA demo")
+st.title("Ask Dolomites Demo")
 
 # Re-render chat history
 for message in st.session_state.messages:
     render(message)
 
 
-def main(
+def access_from_api(
     question: str,
     top_k: int,
     model_name: str,
     screening_top_k: int,
-    retriever_endpoint: str = None,
-) -> dict:
+    **kwargs,
+):
     """Main loop of the demo app."""
     chat_log(role="user", content=question)
-
-    if not retriever_endpoint:
-        retriever_endpoint = os.getenv("RETRIEVER_URL")
 
     # Call the API
 
@@ -111,7 +106,7 @@ def main(
             top_k=top_k,
             model_name=model_name,
             screening_top_k=screening_top_k,
-            retriever_endpoint=retriever_endpoint,
+            retriever_endpoint=os.getenv("RETRIEVER_URL"),
         )
         for doc in final_answer["used_docs"]:
             append_citation(doc)
@@ -126,7 +121,70 @@ def main(
         chat_log(role="assistant", content=final_answer["answer"])
 
 
-if question := st.chat_input("Ask a question about COVID-19", key="question"):
+def raw_access(
+    question: str,
+    top_k: int,
+    model_name: str,
+    screening_top_k: int,
+    **kwargs,
+) -> None:
+    """Temporary raw access."""
+    chat_log(role="user", content=question)
+
+    answer = {}
+
+    react_manager = ReactManager(
+        entry_query=question,
+        search_config={"top_k": top_k, "screening_top_k": screening_top_k},
+        model_name=model_name,
+        verbose=True,
+    )
+
+    react_iterator = react_manager.get_iterator()
+
+    while not "output" in answer:
+        with st.spinner(
+            "Running... it may take 10 seconds or longer if you choose GPT-4."
+        ):
+            answer = next(react_iterator)
+        if "intermediate_step" in answer:
+            action_logs = answer["intermediate_step"][0][0].log.split("\n")
+            for action_log in action_logs:
+                chat_log(role="assistant", content=action_log)
+
+            if react_manager.latest_used_docs is None:
+                continue
+
+            for doc in react_manager.latest_used_docs:
+                append_citation(doc)
+                chat_log(
+                    role="assistant",
+                    content=doc["text"],
+                    container="expander",
+                    avatar="📄",
+                    title=doc["citation"],
+                    link=f"https://xdd.wisc.edu/api/v2/articles/?docid={doc['paper_id']}",
+                )
+
+    final_answer = answer["output"]
+    chat_log(role="assistant", content=final_answer)
+
+
+def main(
+    question: str,
+    top_k: int,
+    model_name: str,
+    screening_top_k: int,
+    verbose: bool,
+    **kwargs,
+):
+    if verbose:
+        raw_access(question, top_k, model_name, screening_top_k, **kwargs)
+    else:
+        access_from_api(question, top_k, model_name, screening_top_k, **kwargs)
+
+
+if question := st.chat_input("Ask a question about Dolomites", key="question"):
     main(question, **st.session_state.settings)
 
 # Preset questions
@@ -137,17 +195,19 @@ with st.sidebar:
 
     st.subheader("Advanced settings")
     st.markdown(
-        "You can customize the QA system, all of these settings are available in the [API route](http://cosmos0001.chtc.wisc.edu:4502/docs) as well."
+        "You can customize the QA system, all of these settings are available in the [API route](http://cosmos0004.chtc.wisc.edu:4502/docs) as well."
     )
 
     st.session_state["settings"]["model_name"] = st.radio(
         "model", ["gpt-4", "gpt-3.5-turbo-16k"]
     )
-    st.session_state["settings"]["top_k"] = st.number_input("retriever top-k", value=5)
+    st.session_state["settings"]["top_k"] = st.number_input("retriever top-k", value=3)
     st.session_state["settings"]["screening_top_k"] = st.number_input(
         "screening phase top-k", value=100
     )
 
+    st.session_state["settings"]["verbose"] = st.checkbox("verbose", value=True)
+
 
 if run_from_preset:
-    main(question=preset_question, **st.session_state.settings)
+    main(preset_question, **st.session_state.settings)
