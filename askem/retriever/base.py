@@ -116,19 +116,19 @@ def init_retriever(client=None, version: int = 1) -> None:
 def to_document(result: dict) -> Document:
     """Convert a weaviate result to a `Document`."""
 
-    article_terms = [result[f"article_terms_{i}"] for i in range(10)]
-    article_terms = [term for term in article_terms if term]  # Remove empty terms
+    # article_terms = [result[f"article_terms_{i}"] for i in range(10)]
+    # article_terms = [term for term in article_terms if term]  # Remove empty terms
 
     paragraph_terms = [result[f"paragraph_terms_{i}"] for i in range(3)]
     paragraph_terms = [term for term in paragraph_terms if term]  # Remove empty terms
 
     return Document(
         paper_id=result["paper_id"],
-        cosmos_object_id=result["cosmos_object_id"],
+        # cosmos_object_id=result["cosmos_object_id"],
         doc_type=result["type"],
         text=result["text_content"],
         distance=result["_additional"]["distance"],
-        article_terms=article_terms,
+        # article_terms=article_terms,
         paragraph_terms=paragraph_terms,
     )
 
@@ -170,9 +170,9 @@ def get_documents(
     """
 
     # Get weaviate results (not executed yet)
-    output_fields = ["paper_id", "cosmos_object_id", "preprocessor_id"]
+    output_fields = ["paper_id", "preprocessor_id"]
     output_fields.extend(["topic", "type", "text_content"])
-    output_fields.extend([f"article_terms_{i}" for i in range(10)])
+    # output_fields.extend([f"article_terms_{i}" for i in range(10)])
     output_fields.extend([f"paragraph_terms_{i}" for i in range(3)])
 
     # Progressively build up the get query: filter -> near_text ->  limit
@@ -206,7 +206,7 @@ def get_documents(
             }
         )
 
-    # Filter by article_terms: any of the terms must be present in the article_terms_0,1...9
+    # Filter by _terms: any of the terms must be present in the article_terms_0,1...9
     if article_terms is not None:
         logging.info(f"Filtering by article_terms: {article_terms}")
 
@@ -286,6 +286,8 @@ def get_documents(
 
     # Limit and run
     results = results.with_limit(top_k).do()
+
+    print(results)
 
     if "data" not in results or not results["data"]["Get"]["Passage"]:
         logging.info(f"No results found")

@@ -12,6 +12,7 @@ class DocType(str, Enum):
 
 class Topic(str, Enum):
     COVID = "covid"
+    DOLOMITES = "dolomites"
 
 
 class ClassName(str, Enum):

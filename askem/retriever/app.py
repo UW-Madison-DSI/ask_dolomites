@@ -42,10 +42,10 @@ def get_contents(response: dict, path: list, field: str) -> List[Any]:
     return [hit[field] for hit in response]
 
 
-def _screening(query: str, top_k: int) -> list[str]:
+def _screening(query: str, top_k: int, xdd_dataset: str) -> list[str]:
     """Get a list of article ids with elastic search."""
 
-    results = xdd_search(query, top_k, dataset="xdd-covid-19")
+    results = xdd_search(query, top_k, dataset=xdd_dataset)
     return get_contents(results, ["success", "data"], "_gddid")
 
 
@@ -64,9 +64,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="xdd-llm-prototype",
-    description="API for the xdd-llm-prototype.",
-    version="0.3.0",
+    title="ask-dolomites-prototype",
+    description="API for the ask-dolomites-prototype.",
+    version="0.3.1",
     lifespan=lifespan,
 )
 
@@ -94,8 +94,12 @@ async def hybrid_get_docs(query: HybridQuery) -> List[Document]:
 
     # Stage 1: Screening with XDD elastic search
     query = query.dict()
-    query["paper_ids"] = _screening(query["question"], query.pop("screening_top_k"))
 
+    xdd_dataset = "dolomites"  # TODO: use `topic` to handle this
+    query["paper_ids"] = _screening(
+        query["question"], query.pop("screening_top_k"), xdd_dataset
+    )
+    logging.info(f"Screening results: {query['paper_ids']}")
     return get_documents(client=cached_resources["weaviate_client"], **query)
 
 
