@@ -216,7 +216,7 @@ with st.sidebar:
     )
 
     st.session_state["settings"]["model_name"] = st.radio(
-        "model", ["gpt-3.5-turbo-16k", "gpt-4"]
+        "model", ["gpt-3.5-turbo-16k", "gpt-4", "gpt-4-1106-preview"]
     )
     st.session_state["settings"]["top_k"] = st.number_input("retriever top-k", value=3)
     st.session_state["settings"]["screening_top_k"] = st.number_input(
