@@ -2,7 +2,7 @@ import os
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Optional
-
+import requests
 import streamlit as st
 from citation import to_apa
 from connector import query_react, ReactManager
@@ -15,6 +15,21 @@ def append_citation(document: dict) -> None:
         document["citation"] = to_apa(document["paper_id"], in_text=True)
     except Exception:
         document["citation"] = document["paper_id"]
+
+
+def append_title(document: dict) -> None:
+    """Append citation to document."""
+
+    try:
+        xdd_response = requests.get(
+            f"https://xdd.wisc.edu/api/v2/articles/?docid={document['paper_id']}"
+        )
+        xdd_response.raise_for_status()
+        xdd_data = xdd_response.json()
+        print(xdd_data)
+        document["title"] = xdd_data["success"]["data"][0]["title"]
+    except Exception:
+        document["title"] = ""
 
 
 # Initialize states
@@ -110,12 +125,13 @@ def access_from_api(
         )
         for doc in final_answer["used_docs"]:
             append_citation(doc)
+            append_title(doc)
             chat_log(
                 role="assistant",
                 content=doc["text"],
                 container="expander",
                 avatar="📄",
-                title=doc["citation"],
+                title=f"{doc['title']} ({doc['citation']})",
                 link=f"https://xdd.wisc.edu/api/v2/articles/?docid={doc['paper_id']}",
             )
         chat_log(role="assistant", content=final_answer["answer"])
@@ -157,12 +173,13 @@ def raw_access(
 
             for doc in react_manager.latest_used_docs:
                 append_citation(doc)
+                append_title(doc)
                 chat_log(
                     role="assistant",
                     content=doc["text"],
                     container="expander",
                     avatar="📄",
-                    title=doc["citation"],
+                    title=f"{doc['title']} ({doc['citation']})",
                     link=f"https://xdd.wisc.edu/api/v2/articles/?docid={doc['paper_id']}",
                 )
 
@@ -199,7 +216,7 @@ with st.sidebar:
     )
 
     st.session_state["settings"]["model_name"] = st.radio(
-        "model", ["gpt-4", "gpt-3.5-turbo-16k"]
+        "model", ["gpt-3.5-turbo-16k", "gpt-4"]
     )
     st.session_state["settings"]["top_k"] = st.number_input("retriever top-k", value=3)
     st.session_state["settings"]["screening_top_k"] = st.number_input(
