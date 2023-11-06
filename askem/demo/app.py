@@ -1,6 +1,5 @@
 import os
 from dataclasses import dataclass
-from enum import Enum, auto
 from typing import Optional
 import requests
 import streamlit as st
@@ -166,6 +165,8 @@ def raw_access(
         if "intermediate_step" in answer:
             action_logs = answer["intermediate_step"][0][0].log.split("\n")
             for action_log in action_logs:
+                if not action_log:
+                    continue
                 chat_log(role="assistant", content=action_log)
 
             if react_manager.latest_used_docs is None:
